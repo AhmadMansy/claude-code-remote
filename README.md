@@ -1,4 +1,4 @@
-# Claude Code Mobile Bridge v5
+# Claude Code Mobile Bridge
 
 Mirror and control your Claude Code terminal **from your phone**. Perfect sync with your IDE — both see the exact same thing.
 
