@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code Review — Claude Code Mobile Bridge v5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #08080c;
+  --bg2: #0e0e14;
+  --surface: #13131b;
+  --surface2: #1a1a25;
+  --surface3: #22222f;
+  --border: #2a2a3a;
+  --border2: #363648;
+  --text: #d8d8e8;
+  --text2: #8888a8;
+  --text3: #555570;
+  --accent: #e8864a;
+  --accent2: #f0a060;
+  --accent-glow: rgba(232, 134, 74, 0.15);
+  --critical: #ff4d4d;
+  --critical-bg: rgba(255, 77, 77, 0.08);
+  --critical-border: rgba(255, 77, 77, 0.2);
+  --major: #f0a030;
+  --major-bg: rgba(240, 160, 48, 0.08);
+  --major-border: rgba(240, 160, 48, 0.2);
+  --minor: #5a9cf5;
+  --minor-bg: rgba(90, 156, 245, 0.06);
+  --minor-border: rgba(90, 156, 245, 0.15);
+  --positive: #3dd68c;
+  --positive-bg: rgba(61, 214, 140, 0.06);
+  --positive-border: rgba(61, 214, 140, 0.15);
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Noise overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Scanline effect */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── Header ── */
+.hero {
+  position: relative;
+  padding: 60px 40px 50px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  right: -100px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--accent);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-eyebrow::before {
+  content: '';
+  width: 32px;
+  height: 1px;
+  background: var(--accent);
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 60px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin-bottom: 12px;
+}
+
+.hero h1 em {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.hero-sub {
+  font-size: 16px;
+  color: var(--text2);
+  max-width: 580px;
+  margin-bottom: 30px;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text3);
+}
+
+.hero-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-meta .val {
+  color: var(--text2);
+}
+
+.verdict-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: var(--critical-bg);
+  border: 1px solid var(--critical-border);
+  color: var(--critical);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.verdict-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--critical);
+  animation: pulse-dot 2s ease infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(255, 77, 77, 0); }
+}
+
+/* ── Stats bar ── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-cell {
+  background: var(--bg2);
+  padding: 20px 24px;
+  text-align: center;
+}
+
+.stat-num {
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-num.crit { color: var(--critical); }
+.stat-num.maj { color: var(--major); }
+.stat-num.min { color: var(--minor); }
+.stat-num.pos { color: var(--positive); }
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text3);
+}
+
+/* ── Tabs ── */
+.tab-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 16px 24px;
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tab-btn:hover { color: var(--text2); }
+
+.tab-btn.active {
+  color: var(--accent);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--surface2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tab-btn.active .tab-count {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.tab-panel {
+  display: none;
+  animation: fadeUp 0.4s ease;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Report Content ── */
+.content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 50px 40px 100px;
+}
+
+.section {
+  margin-bottom: 56px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.section-icon.crit { background: var(--critical-bg); border: 1px solid var(--critical-border); }
+.section-icon.maj { background: var(--major-bg); border: 1px solid var(--major-border); }
+.section-icon.min { background: var(--minor-bg); border: 1px solid var(--minor-border); }
+.section-icon.pos { background: var(--positive-bg); border: 1px solid var(--positive-border); }
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.section-title em { color: var(--accent); font-style: italic; }
+
+.issue-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 16px;
+  position: relative;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.issue-card:hover {
+  border-color: var(--border2);
+  transform: translateY(-1px);
+}
+
+.issue-card.crit { border-left: 3px solid var(--critical); }
+.issue-card.maj { border-left: 3px solid var(--major); }
+.issue-card.min { border-left: 3px solid var(--minor); }
+.issue-card.pos { border-left: 3px solid var(--positive); }
+
+.issue-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.issue-number {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.issue-title {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.issue-loc {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.issue-body {
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.issue-body p {
+  margin-bottom: 12px;
+}
+
+.issue-body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 14px 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text2);
+}
+
+pre .comment { color: var(--text3); }
+pre .keyword { color: var(--accent); }
+pre .string { color: var(--positive); }
+pre .fn { color: #c87aff; }
+pre .bad { color: var(--critical); opacity: 0.7; }
+pre .good { color: var(--positive); opacity: 0.8; }
+
+.tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-right: 6px;
+}
+
+.tag.security { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-border); }
+.tag.perf { background: var(--major-bg); color: var(--major); border: 1px solid var(--major-border); }
+.tag.quality { background: var(--minor-bg); color: var(--minor); border: 1px solid var(--minor-border); }
+.tag.dx { background: rgba(200,122,255,0.08); color: #c87aff; border: 1px solid rgba(200,122,255,0.15); }
+
+/* Positive items */
+.positive-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--positive);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+
+.positive-item .check {
+  color: var(--positive);
+  font-size: 15px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Questions */
+.question-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+
+.question-item .q-mark {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: -2px;
+}
+
+/* ── Tasks Tab ── */
+.tasks-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.filter-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-pill:hover { border-color: var(--border2); color: var(--text2); }
+.filter-pill.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+.filter-pill .count { opacity: 0.6; margin-left: 4px; }
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar {
+  width: 140px;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  width: 0%;
+}
+
+.progress-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text3);
+}
+
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s, opacity 0.3s;
+}
+
+.task-card.done {
+  opacity: 0.5;
+}
+
+.task-card.done .task-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--text3);
+}
+
+.task-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 20px;
+  cursor: pointer;
+}
+
+.task-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid var(--border2);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 1px;
+  font-size: 12px;
+  color: transparent;
+}
+
+.task-check:hover {
+  border-color: var(--accent);
+}
+
+.task-card.done .task-check {
+  background: var(--positive);
+  border-color: var(--positive);
+  color: #fff;
+}
+
+.task-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.task-severity {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.task-severity.crit { background: var(--critical-bg); color: var(--critical); }
+.task-severity.maj { background: var(--major-bg); color: var(--major); }
+.task-severity.min { background: var(--minor-bg); color: var(--minor); }
+
+.task-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.task-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.task-desc-short {
+  font-size: 13px;
+  color: var(--text3);
+  line-height: 1.5;
+}
+
+.task-expand-icon {
+  color: var(--text3);
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: transform 0.3s;
+  margin-top: 2px;
+}
+
+.task-card.expanded .task-expand-icon {
+  transform: rotate(180deg);
+}
+
+.task-detail {
+  display: none;
+  padding: 0 20px 20px 56px;
+  animation: fadeUp 0.3s ease;
+}
+
+.task-card.expanded .task-detail {
+  display: block;
+}
+
+.detail-section {
+  margin-bottom: 16px;
+}
+
+.detail-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+
+.detail-text {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.8;
+}
+
+.detail-text code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--accent2);
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 3px 10px;
+  border-radius: 4px;
+  margin: 2px 4px 2px 0;
+}
+
+.effort-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--surface2);
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+
+/* ── Summary table ── */
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 13px;
+}
+
+.summary-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text3);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(42, 42, 58, 0.5);
+  color: var(--text2);
+  vertical-align: top;
+}
+
+.summary-table tr:hover td {
+  background: var(--surface);
+}
+
+/* ── Insight boxes ── */
+.insight-box {
+  background: linear-gradient(135deg, var(--accent-glow), transparent);
+  border: 1px solid rgba(232, 134, 74, 0.15);
+  border-radius: 10px;
+  padding: 20px 22px;
+  margin: 20px 0;
+  position: relative;
+}
+
+.insight-box::before {
+  content: '★';
+  position: absolute;
+  top: -8px;
+  left: 16px;
+  background: var(--bg);
+  padding: 0 6px;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.insight-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.insight-body {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.8;
+}
+
+/* ── Footer ── */
+.report-footer {
+  text-align: center;
+  padding: 40px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.report-footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .hero { padding: 36px 20px 32px; }
+  .content { padding: 30px 18px 80px; }
+  .hero-meta { gap: 12px; }
+  .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  .task-detail { padding-left: 20px; }
+  .tasks-toolbar { flex-direction: column; align-items: stretch; }
+}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="hero-eyebrow">Security &amp; Quality Audit</div>
+  <h1>Claude Code Mobile Bridge <em>v5</em></h1>
+  <p class="hero-sub">
+    A thorough code review of the pure-tmux Node.js server that mirrors and controls
+    Claude Code CLI sessions from mobile devices.
+  </p>
+  <div class="hero-meta">
+    <span>File <span class="val">server.js</span></span>
+    <span>Lines <span class="val">771</span></span>
+    <span>Lang <span class="val">Node.js</span></span>
+    <span>Date <span class="val">25 Feb 2026</span></span>
+    <span><span class="verdict-badge">Request Changes</span></span>
+  </div>
+</header>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat-cell"><div class="stat-num crit">4</div><div class="stat-label">Critical</div></div>
+  <div class="stat-cell"><div class="stat-num maj">5</div><div class="stat-label">Major</div></div>
+  <div class="stat-cell"><div class="stat-num min">4</div><div class="stat-label">Minor</div></div>
+  <div class="stat-cell"><div class="stat-num pos">5</div><div class="stat-label">Positive</div></div>
+</div>
+
+<!-- Tabs -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="report">
+    Full Report <span class="tab-count">13</span>
+  </button>
+  <button class="tab-btn" data-tab="tasks">
+    Fix Tasks <span class="tab-count">9</span>
+  </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- REPORT TAB                                  -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-report">
+<div class="content">
+
+  <!-- Critical Issues -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon crit">&#9888;</div>
+      <h2 class="section-title">Critical Issues — <em>Must Fix</em></h2>
+    </div>
+
+    <div class="issue-card crit">
+      <div class="issue-header">
+        <span class="issue-number">#1</span>
+        <span class="issue-title">Command Injection via Session Names</span>
+      </div>
+      <div class="issue-loc">server.js:85, 91, 98, 108</div>
+      <span class="tag security">Security</span>
+      <div class="issue-body">
+        <p>User-supplied session names are interpolated directly into shell commands with <strong>no sanitization</strong>.
+        An attacker on the same network can POST to <code>/api/attach</code> with a crafted session name like
+        <code>"; rm -rf /; echo "</code> to execute arbitrary OS commands.</p>
+        <pre><span class="comment">// Current — VULNERABLE</span>
+<span class="bad">return execSync('tmux capture-pane -e -p -t "' + session + '"');</span>
+<span class="bad">execSync('tmux send-keys -t "' + session + '" -l ' + escapeShell(keys));</span>
+<span class="bad">execSync('tmux new-session -d -s "' + name + '" ...');</span>
+
+<span class="comment">// Fix — use execFileSync with args array</span>
+<span class="keyword">var</span> execFileSync = <span class="fn">require</span>(<span class="string">'child_process'</span>).execFileSync;
+<span class="good">execFileSync('tmux', ['capture-pane', '-e', '-p', '-t', session]);</span></pre>
+        <div class="insight-box">
+          <div class="insight-title">Insight</div>
+          <div class="insight-body">
+            <strong>Command injection</strong> is OWASP's #1 risk. When building shell commands from user input,
+            always use <code>execFile</code>/<code>execFileSync</code> with an args array (which avoids the shell entirely),
+            or validate inputs against a strict allowlist like <code>/^[a-zA-Z0-9_.-]+$/</code>.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue-card crit">
+      <div class="issue-header">
+        <span class="issue-number">#2</span>
+        <span class="issue-title">Unguarded JSON.parse Crashes the Server</span>
+      </div>
+      <div class="issue-loc">server.js:208, 219, 263, 290</div>
+      <span class="tag security">Security</span> <span class="tag perf">Reliability</span>
+      <div class="issue-body">
+        <p>Every POST handler calls <code>JSON.parse(body)</code> without try/catch. Since there's no
+        <code>process.on('uncaughtException')</code> handler either, a single malformed request
+        <strong>kills the entire server</strong>.</p>
+        <pre><span class="comment">// Current — will crash on malformed input</span>
+<span class="bad">var parsed = JSON.parse(body);</span>
+
+<span class="comment">// Fix — wrap in try/catch</span>
+<span class="keyword">try</span> {
+  <span class="keyword">var</span> parsed = JSON.<span class="fn">parse</span>(body);
+} <span class="keyword">catch</span>(e) {
+  <span class="good">res.writeHead(400); res.end('{"error":"Invalid JSON"}'); return;</span>
+}</pre>
+      </div>
+    </div>
+
+    <div class="issue-card crit">
+      <div class="issue-header">
+        <span class="issue-number">#3</span>
+        <span class="issue-title">No Request Body Size Limit (Memory DoS)</span>
+      </div>
+      <div class="issue-loc">server.js:321–325</div>
+      <span class="tag security">Security</span>
+      <div class="issue-body">
+        <p>The <code>readBody</code> function accumulates the entire request body into memory with <strong>no limit</strong>.
+        An attacker could send a multi-gigabyte POST body to exhaust server memory.</p>
+        <pre><span class="comment">// Current — unbounded</span>
+<span class="bad">req.on('data', function(c) { body += c; });</span>
+
+<span class="comment">// Fix — enforce limit</span>
+req.on(<span class="string">'data'</span>, <span class="keyword">function</span>(c) {
+  size += c.length;
+  <span class="good">if (size > 64 * 1024) { req.destroy(); return; }</span>
+  body += c;
+});</pre>
+      </div>
+    </div>
+
+    <div class="issue-card crit">
+      <div class="issue-header">
+        <span class="issue-number">#4</span>
+        <span class="issue-title">XSS via innerHTML with Session Names</span>
+      </div>
+      <div class="issue-loc">server.js:659–661 (client-side JS)</div>
+      <span class="tag security">Security</span>
+      <div class="issue-body">
+        <p>Session names from tmux are injected into the DOM via <code>innerHTML</code> without escaping.
+        A tmux session named <code>&lt;img src=x onerror=alert(1)&gt;</code> would execute JavaScript.</p>
+        <pre><span class="comment">// Current — injects raw session names into HTML</span>
+<span class="bad">sl.innerHTML = d.sessions.map(function(s) {</span>
+<span class="bad">  return '&lt;div class="sc-n"&gt;' + s.name + '&lt;/div&gt;';</span>
+<span class="bad">}).join("");</span>
+
+<span class="comment">// Fix — escape HTML entities</span>
+<span class="keyword">function</span> <span class="fn">esc</span>(s) {
+  <span class="keyword">var</span> d = document.<span class="fn">createElement</span>(<span class="string">'div'</span>);
+  d.<span class="fn">appendChild</span>(document.<span class="fn">createTextNode</span>(s));
+  <span class="good">return d.innerHTML;</span>
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Major Issues -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon maj">&#9888;</div>
+      <h2 class="section-title">Major Issues — <em>Should Fix</em></h2>
+    </div>
+
+    <div class="issue-card maj">
+      <div class="issue-header">
+        <span class="issue-number">#5</span>
+        <span class="issue-title">Wildcard CORS on a Command Execution Server</span>
+      </div>
+      <div class="issue-loc">server.js:189</div>
+      <span class="tag security">Security</span>
+      <div class="issue-body">
+        <p><code>Access-Control-Allow-Origin: *</code> means <strong>any website</strong> open in your browser
+        can send fetch requests to this server and execute tmux commands. A malicious webpage could silently
+        interact with your Claude Code session.</p>
+        <div class="insight-box">
+          <div class="insight-title">Insight</div>
+          <div class="insight-body">
+            A server on <code>0.0.0.0</code> with <code>CORS: *</code> creates a "browser-as-proxy" attack surface.
+            Any website you visit while this server is running could be a control plane for your terminal.
+            Restrict CORS to the server's own origin or require an auth token.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue-card maj">
+      <div class="issue-header">
+        <span class="issue-number">#6</span>
+        <span class="issue-title">Synchronous execSync Blocks the Event Loop</span>
+      </div>
+      <div class="issue-loc">server.js:28, 64, 91, 98, 108, 221</div>
+      <span class="tag perf">Performance</span>
+      <div class="issue-body">
+        <p>Almost all shell operations use <code>execSync</code>, which blocks the entire Node.js event loop.
+        With a 150ms polling interval calling <code>execSync</code>, every poll blocks all HTTP requests and SSE writes.</p>
+        <div class="insight-box">
+          <div class="insight-title">Insight</div>
+          <div class="insight-body">
+            In Node.js, the event loop is single-threaded. <code>execSync</code> freezes all I/O
+            until the child process completes. For a server handling concurrent SSE clients, this means
+            dropped frames and unresponsive endpoints. Use <code>execFile</code> (async) with callbacks.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="issue-card maj">
+      <div class="issue-header">
+        <span class="issue-number">#7</span>
+        <span class="issue-title">Unused Native Dependency: node-pty</span>
+      </div>
+      <div class="issue-loc">package.json:10</div>
+      <span class="tag dx">Maintainability</span>
+      <div class="issue-body">
+        <p><code>node-pty</code> is a heavy native module requiring C++ compilation, but v5 doesn't use it anywhere.
+        This adds ~62MB of <code>node_modules</code>, slows installation, and can fail on systems without build tools.</p>
+      </div>
+    </div>
+
+    <div class="issue-card maj">
+      <div class="issue-header">
+        <span class="issue-number">#8</span>
+        <span class="issue-title">No Graceful Shutdown</span>
+      </div>
+      <div class="issue-loc">server.js (global)</div>
+      <span class="tag quality">Reliability</span>
+      <div class="issue-body">
+        <p>There's no <code>SIGTERM</code>/<code>SIGINT</code> handler. On termination, SSE clients receive no
+        notification, the polling interval keeps running, and no cleanup occurs.</p>
+      </div>
+    </div>
+
+    <div class="issue-card maj">
+      <div class="issue-header">
+        <span class="issue-number">#9</span>
+        <span class="issue-title">Legacy Dead Files in Repository</span>
+      </div>
+      <div class="issue-loc">server_1.js, pty_helper.py</div>
+      <span class="tag dx">Maintainability</span>
+      <div class="issue-body">
+        <p><code>server_1.js</code> (708 lines) and <code>pty_helper.py</code> (121 lines) are fully superseded
+        by the v5 rewrite. They add confusion about which file is canonical and bloat the repository.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Minor Issues -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon min">&#128712;</div>
+      <h2 class="section-title">Minor Issues — <em>Nice to Have</em></h2>
+    </div>
+
+    <div class="issue-card min">
+      <div class="issue-header">
+        <span class="issue-number">#10</span>
+        <span class="issue-title"><code>var</code> Usage Throughout</span>
+      </div>
+      <div class="issue-body">
+        <p>The entire codebase uses <code>var</code> (ES3-era). Since this targets modern Node.js,
+        <code>const</code>/<code>let</code> would prevent accidental hoisting bugs.</p>
+      </div>
+    </div>
+
+    <div class="issue-card min">
+      <div class="issue-header">
+        <span class="issue-number">#11</span>
+        <span class="issue-title">Magic Numbers Scattered Throughout</span>
+      </div>
+      <div class="issue-body">
+        <p><code>150</code>, <code>2000</code>, <code>3391</code>, <code>50</code>, <code>200</code>,
+        <code>600</code>, <code>3000</code> appear without named constants, reducing readability.</p>
+      </div>
+    </div>
+
+    <div class="issue-card min">
+      <div class="issue-header">
+        <span class="issue-number">#12</span>
+        <span class="issue-title">No Structured Logging</span>
+      </div>
+      <div class="issue-body">
+        <p>Only <code>console.log</code> at startup. No request logging, no error logging during operation.
+        Debugging production issues would be blind.</p>
+      </div>
+    </div>
+
+    <div class="issue-card min">
+      <div class="issue-header">
+        <span class="issue-number">#13</span>
+        <span class="issue-title">Monolithic Embedded HTML (~330 lines)</span>
+      </div>
+      <div class="issue-body">
+        <p>The entire mobile UI is a concatenated string array within <code>server.js</code>. This makes
+        the HTML/CSS/JS nearly impossible to lint, format, or syntax-highlight.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Positive -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon pos">&#10003;</div>
+      <h2 class="section-title">Positive <em>Feedback</em></h2>
+    </div>
+
+    <div class="positive-item"><span class="check">&#10003;</span>
+      <span><strong>Smart architectural choice</strong> — the v5 rewrite to pure tmux polling eliminated complex
+      PTY sync bugs. Using <code>capture-pane</code> guarantees IDE and phone always see the exact same state.</span>
+    </div>
+    <div class="positive-item"><span class="check">&#10003;</span>
+      <span><strong>Clean SSE implementation</strong> — the broadcast/filter pattern is elegant and handles
+      disconnected clients gracefully.</span>
+    </div>
+    <div class="positive-item"><span class="check">&#10003;</span>
+      <span><strong>Thoughtful mobile UX</strong> — safe-area-inset handling, haptic feedback, audio notifications,
+      dark/light theme with persistence, background notifications. Surprisingly polished for a dev tool.</span>
+    </div>
+    <div class="positive-item"><span class="check">&#10003;</span>
+      <span><strong>Self-contained deployment</strong> — zero config, no build step, one command to start. Exactly
+      right for a developer utility.</span>
+    </div>
+    <div class="positive-item"><span class="check">&#10003;</span>
+      <span><strong>Correct shell escaping</strong> — the <code>escapeShell</code> function properly handles
+      single-quote escaping for shell arguments.</span>
+    </div>
+  </section>
+
+  <!-- Questions -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--accent-glow);border:1px solid rgba(232,134,74,0.2)">?</div>
+      <h2 class="section-title">Questions for <em>Author</em></h2>
+    </div>
+
+    <div class="question-item"><span class="q-mark">?</span>
+      <span><strong>Is this intended for use on public networks?</strong> If so, the CORS and auth issues
+      become truly critical. Even on private WiFi, any browser tab could interact with this server.</span>
+    </div>
+    <div class="question-item"><span class="q-mark">?</span>
+      <span><strong>Why keep node-pty as a dependency?</strong> Is there a plan to revert to PTY-based approach,
+      or can it be removed?</span>
+    </div>
+    <div class="question-item"><span class="q-mark">?</span>
+      <span><strong>Should server_1.js and pty_helper.py be deleted?</strong> They appear fully superseded by v5.</span>
+    </div>
+    <div class="question-item"><span class="q-mark">?</span>
+      <span><strong>Is there a reason for var over const/let?</strong> Targeting a very old Node.js version?</span>
+    </div>
+  </section>
+
+  <!-- Priority Table -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--surface2);border:1px solid var(--border)">&#9776;</div>
+      <h2 class="section-title">Priority <em>Summary</em></h2>
+    </div>
+    <table class="summary-table">
+      <thead>
+        <tr><th>#</th><th>Severity</th><th>Issue</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td><span class="task-severity crit">Critical</span></td><td>Command injection via session names</td><td>Remote code execution</td></tr>
+        <tr><td>2</td><td><span class="task-severity crit">Critical</span></td><td>Unguarded JSON.parse</td><td>Server crash (DoS)</td></tr>
+        <tr><td>3</td><td><span class="task-severity crit">Critical</span></td><td>No body size limit</td><td>Memory exhaustion (DoS)</td></tr>
+        <tr><td>4</td><td><span class="task-severity crit">Critical</span></td><td>XSS via innerHTML</td><td>Client-side code execution</td></tr>
+        <tr><td>5</td><td><span class="task-severity maj">Major</span></td><td>Wildcard CORS</td><td>Cross-origin command execution</td></tr>
+        <tr><td>6</td><td><span class="task-severity maj">Major</span></td><td>Synchronous execSync</td><td>Event loop blocking</td></tr>
+        <tr><td>7</td><td><span class="task-severity maj">Major</span></td><td>Unused node-pty dependency</td><td>Build complexity &amp; bloat</td></tr>
+        <tr><td>8</td><td><span class="task-severity maj">Major</span></td><td>No graceful shutdown</td><td>Zombie connections</td></tr>
+        <tr><td>9</td><td><span class="task-severity maj">Major</span></td><td>Legacy dead files</td><td>Confusion &amp; bloat</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TASKS TAB                                   -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-tasks">
+<div class="content">
+
+  <div class="tasks-toolbar">
+    <div class="filter-pills">
+      <button class="filter-pill active" data-filter="all">All <span class="count">9</span></button>
+      <button class="filter-pill" data-filter="crit">Critical <span class="count">4</span></button>
+      <button class="filter-pill" data-filter="maj">Major <span class="count">5</span></button>
+    </div>
+    <div class="progress-container">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-text" id="progressText">0 / 9 done</span>
+    </div>
+  </div>
+
+  <!-- Task 1 -->
+  <div class="task-card" data-severity="crit" data-id="1">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity crit">Critical</span>
+          <span class="task-id">TASK-001</span>
+          <span class="effort-badge">&#9201; ~1hr</span>
+        </div>
+        <div class="task-title">Fix Command Injection in All Shell Calls</div>
+        <div class="task-desc-short">Replace string-interpolated execSync with execFileSync using argument arrays.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">server.js</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>1.</strong> Add a session name validation function:</p>
+          <pre><span class="keyword">function</span> <span class="fn">isValidSessionName</span>(name) {
+  <span class="keyword">return</span> <span class="string">/^[a-zA-Z0-9_.-]+$/</span>.test(name) &amp;&amp; name.length &lt; 64;
+}</pre>
+          <p><strong>2.</strong> Replace all <code>execSync('tmux ' + args)</code> calls with <code>execFileSync('tmux', [args])</code>:</p>
+          <pre><span class="comment">// tmuxExec()</span>
+<span class="keyword">function</span> <span class="fn">tmuxExec</span>(args) {
+  <span class="keyword">try</span> {
+    <span class="keyword">return</span> <span class="fn">execFileSync</span>(<span class="string">'tmux'</span>, args, { encoding: <span class="string">'utf-8'</span>, timeout: 3000 });
+  } <span class="keyword">catch</span>(e) { <span class="keyword">return</span> <span class="string">''</span>; }
+}
+
+<span class="comment">// capturePane()</span>
+<span class="keyword">return</span> <span class="fn">tmuxExec</span>([<span class="string">'capture-pane'</span>, <span class="string">'-e'</span>, <span class="string">'-p'</span>, <span class="string">'-t'</span>, session]);
+
+<span class="comment">// sendKeys()</span>
+<span class="fn">execFileSync</span>(<span class="string">'tmux'</span>, [<span class="string">'send-keys'</span>, <span class="string">'-t'</span>, session, <span class="string">'-l'</span>, keys], { timeout: 2000 });
+
+<span class="comment">// sendSpecialKey()</span>
+<span class="fn">execFileSync</span>(<span class="string">'tmux'</span>, [<span class="string">'send-keys'</span>, <span class="string">'-t'</span>, session, keyName], { timeout: 2000 });</pre>
+          <p><strong>3.</strong> Add validation at every API entry point that accepts a session name.</p>
+          <p><strong>4.</strong> Fix <code>createSession()</code> — use <code>execFileSync</code> with proper arg array for <code>tmux new-session</code>.</p>
+          <p><strong>5.</strong> Fix <code>which()</code> — use <code>execFileSync('which', [cmd])</code>.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          No user-supplied string is ever concatenated into a shell command string. All tmux interactions use <code>execFileSync</code> with argument arrays.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 2 -->
+  <div class="task-card" data-severity="crit" data-id="2">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity crit">Critical</span>
+          <span class="task-id">TASK-002</span>
+          <span class="effort-badge">&#9201; ~30min</span>
+        </div>
+        <div class="task-title">Add try/catch Around All JSON.parse Calls</div>
+        <div class="task-desc-short">Wrap every JSON.parse in error handling to prevent server crashes from malformed input.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">server.js</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>1.</strong> Create a helper function:</p>
+          <pre><span class="keyword">function</span> <span class="fn">safeParse</span>(body, res) {
+  <span class="keyword">try</span> { <span class="keyword">return</span> JSON.<span class="fn">parse</span>(body); }
+  <span class="keyword">catch</span>(e) {
+    res.writeHead(400, { <span class="string">'Content-Type'</span>: <span class="string">'application/json'</span> });
+    res.end(<span class="string">'{"error":"Invalid JSON"}'</span>);
+    <span class="keyword">return</span> <span class="keyword">null</span>;
+  }
+}</pre>
+          <p><strong>2.</strong> Replace all 4 instances of raw <code>JSON.parse(body)</code> in <code>/api/attach</code>, <code>/api/create</code>, <code>/api/key</code>, <code>/api/input</code> handlers.</p>
+          <p><strong>3.</strong> Add a global uncaught exception handler as a safety net:</p>
+          <pre>process.on(<span class="string">'uncaughtException'</span>, <span class="keyword">function</span>(err) {
+  console.error(<span class="string">'Uncaught:'</span>, err);
+});</pre>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          Sending a malformed JSON body to any POST endpoint returns 400 instead of crashing the server.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 3 -->
+  <div class="task-card" data-severity="crit" data-id="3">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity crit">Critical</span>
+          <span class="task-id">TASK-003</span>
+          <span class="effort-badge">&#9201; ~15min</span>
+        </div>
+        <div class="task-title">Add Request Body Size Limit to readBody()</div>
+        <div class="task-desc-short">Enforce a maximum body size (64KB) to prevent memory exhaustion attacks.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">server.js</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>1.</strong> Modify the <code>readBody</code> function at line 321:</p>
+          <pre><span class="keyword">var</span> MAX_BODY = 64 * 1024; <span class="comment">// 64KB</span>
+
+<span class="keyword">function</span> <span class="fn">readBody</span>(req, res, cb) {
+  <span class="keyword">var</span> body = <span class="string">''</span>, size = 0;
+  req.on(<span class="string">'data'</span>, <span class="keyword">function</span>(c) {
+    size += c.length;
+    <span class="keyword">if</span> (size > MAX_BODY) {
+      res.writeHead(413);
+      res.end(<span class="string">'{"error":"Body too large"}'</span>);
+      req.destroy();
+      <span class="keyword">return</span>;
+    }
+    body += c;
+  });
+  req.on(<span class="string">'end'</span>, <span class="keyword">function</span>() { cb(body); });
+}</pre>
+          <p><strong>2.</strong> Update all call sites to pass <code>res</code> as the second argument.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          Requests larger than 64KB are rejected with HTTP 413. Connection is destroyed to stop further data.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 4 -->
+  <div class="task-card" data-severity="crit" data-id="4">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity crit">Critical</span>
+          <span class="task-id">TASK-004</span>
+          <span class="effort-badge">&#9201; ~20min</span>
+        </div>
+        <div class="task-title">Fix XSS — Escape Session Names in Client HTML</div>
+        <div class="task-desc-short">Add HTML entity escaping for all dynamic content inserted via innerHTML.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">server.js (embedded HTML/JS)</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>1.</strong> Add an HTML escape utility to the client-side JS:</p>
+          <pre><span class="keyword">function</span> <span class="fn">esc</span>(s) {
+  <span class="keyword">return</span> s.replace(<span class="string">/&amp;/g</span>, <span class="string">'&amp;amp;'</span>)
+          .replace(<span class="string">/&lt;/g</span>, <span class="string">'&amp;lt;'</span>)
+          .replace(<span class="string">/&gt;/g</span>, <span class="string">'&amp;gt;'</span>)
+          .replace(<span class="string">/"/g</span>, <span class="string">'&amp;quot;'</span>)
+          .replace(<span class="string">/'/g</span>, <span class="string">'&amp;#39;'</span>);
+}</pre>
+          <p><strong>2.</strong> In the <code>loadSes()</code> function, wrap every dynamic value with <code>esc()</code>:</p>
+          <pre><span class="good">return '...&lt;div class="sc-n"&gt;' + esc(s.name) + '&lt;/div&gt;...'</span></pre>
+          <p><strong>3.</strong> Also escape session names in the <code>attachSes</code> onclick handler to prevent attribute injection.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          Session names containing HTML special characters (<code>&lt;</code>, <code>&gt;</code>, <code>"</code>, <code>&amp;</code>) render as text, not as executable markup.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 5 -->
+  <div class="task-card" data-severity="maj" data-id="5">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity maj">Major</span>
+          <span class="task-id">TASK-005</span>
+          <span class="effort-badge">&#9201; ~45min</span>
+        </div>
+        <div class="task-title">Replace Wildcard CORS with Origin Restriction or Auth Token</div>
+        <div class="task-desc-short">Restrict cross-origin access to prevent browser-as-proxy attacks from malicious websites.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">server.js</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>Option A — Origin restriction:</strong> Only allow requests from the server's own origin:</p>
+          <pre><span class="keyword">var</span> origin = req.headers.origin;
+<span class="keyword">var</span> allowed = [
+  <span class="string">'http://localhost:'</span> + PORT,
+  <span class="string">'http://127.0.0.1:'</span> + PORT,
+  <span class="string">'http://'</span> + getLocalIP() + <span class="string">':'</span> + PORT
+];
+<span class="keyword">if</span> (allowed.indexOf(origin) !== -1) {
+  res.setHeader(<span class="string">'Access-Control-Allow-Origin'</span>, origin);
+}</pre>
+          <p><strong>Option B — Token auth:</strong> Generate a random token at startup, print it, and require it as a query param or header on all API calls. This is more robust since CORS alone doesn't block non-browser clients.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          Fetch requests from arbitrary websites (different origins) are rejected. Only requests from the server's own UI are accepted.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 6 -->
+  <div class="task-card" data-severity="maj" data-id="6">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity maj">Major</span>
+          <span class="task-id">TASK-006</span>
+          <span class="effort-badge">&#9201; ~1.5hr</span>
+        </div>
+        <div class="task-title">Convert Polling from execSync to Async execFile</div>
+        <div class="task-desc-short">Replace synchronous shell calls in the hot polling path with async alternatives.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">server.js</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>1.</strong> Replace <code>tmuxExec</code> with an async version using <code>execFile</code>:</p>
+          <pre><span class="keyword">var</span> execFile = require(<span class="string">'child_process'</span>).execFile;
+
+<span class="keyword">function</span> <span class="fn">tmuxExecAsync</span>(args, cb) {
+  <span class="fn">execFile</span>(<span class="string">'tmux'</span>, args, { encoding: <span class="string">'utf-8'</span>, timeout: 3000 },
+    <span class="keyword">function</span>(err, stdout) { cb(err ? <span class="string">''</span> : stdout); });
+}</pre>
+          <p><strong>2.</strong> Convert <code>doCapture()</code> to use the async version with a callback or simple flag to prevent overlapping captures.</p>
+          <p><strong>3.</strong> Keep <code>execFileSync</code> for startup-only operations (<code>which()</code>, initial session list) — these are fine since they run once.</p>
+          <p><strong>4.</strong> Convert <code>sendKeys</code> and <code>sendSpecialKey</code> to fire-and-forget async calls.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          The 150ms polling interval no longer blocks HTTP request handling. SSE clients receive frames without delays caused by synchronous tmux calls.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 7 -->
+  <div class="task-card" data-severity="maj" data-id="7">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity maj">Major</span>
+          <span class="task-id">TASK-007</span>
+          <span class="effort-badge">&#9201; ~5min</span>
+        </div>
+        <div class="task-title">Remove Unused node-pty Dependency</div>
+        <div class="task-desc-short">Run npm uninstall node-pty to remove the unused native module and its 62MB footprint.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">package.json</span>
+        <span class="file-chip">package-lock.json</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>1.</strong> Run <code>npm uninstall node-pty</code></p>
+          <p><strong>2.</strong> Verify <code>package.json</code> now has an empty (or missing) <code>dependencies</code> object.</p>
+          <p><strong>3.</strong> Verify the server still starts correctly with <code>npm start</code>.</p>
+          <p><strong>4.</strong> If no other dependencies remain, consider whether <code>node_modules/</code> is even needed.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          <code>node-pty</code> is gone from package.json. <code>npm install</code> completes without requiring C++ build tools. Server starts normally.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 8 -->
+  <div class="task-card" data-severity="maj" data-id="8">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity maj">Major</span>
+          <span class="task-id">TASK-008</span>
+          <span class="effort-badge">&#9201; ~15min</span>
+        </div>
+        <div class="task-title">Add Graceful Shutdown Handler</div>
+        <div class="task-desc-short">Handle SIGTERM/SIGINT to notify SSE clients, stop polling, and close the server cleanly.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Modify</div>
+        <span class="file-chip">server.js</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p>Add signal handlers before <code>server.listen()</code>:</p>
+          <pre><span class="keyword">function</span> <span class="fn">shutdown</span>() {
+  console.log(<span class="string">'\n  Shutting down...'</span>);
+  <span class="fn">broadcast</span>({ type: <span class="string">'shutdown'</span> });
+  <span class="fn">stopPolling</span>();
+  sseClients.forEach(<span class="keyword">function</span>(c) {
+    <span class="keyword">try</span> { c.end(); } <span class="keyword">catch</span>(e) {}
+  });
+  server.<span class="fn">close</span>(<span class="keyword">function</span>() { process.exit(0); });
+  <span class="comment">// Force exit after 3s if connections won't close</span>
+  setTimeout(<span class="keyword">function</span>() { process.exit(0); }, 3000);
+}
+
+process.on(<span class="string">'SIGINT'</span>, shutdown);
+process.on(<span class="string">'SIGTERM'</span>, shutdown);</pre>
+          <p>On the client side, handle the <code>shutdown</code> event in the SSE listener to show a "Server stopped" message.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          Ctrl+C gracefully notifies all connected clients, stops the polling timer, and exits within 3 seconds.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task 9 -->
+  <div class="task-card" data-severity="maj" data-id="9">
+    <div class="task-main" onclick="toggleTask(this)">
+      <div class="task-check" onclick="event.stopPropagation();checkTask(this)">&#10003;</div>
+      <div class="task-info">
+        <div class="task-top">
+          <span class="task-severity maj">Major</span>
+          <span class="task-id">TASK-009</span>
+          <span class="effort-badge">&#9201; ~5min</span>
+        </div>
+        <div class="task-title">Delete Legacy Files: server_1.js &amp; pty_helper.py</div>
+        <div class="task-desc-short">Remove superseded files that add confusion about which server version is canonical.</div>
+      </div>
+      <div class="task-expand-icon">&#9662;</div>
+    </div>
+    <div class="task-detail">
+      <div class="detail-section">
+        <div class="detail-label">Files to Delete</div>
+        <span class="file-chip">server_1.js</span>
+        <span class="file-chip">pty_helper.py</span>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Detailed Steps</div>
+        <div class="detail-text">
+          <p><strong>1.</strong> Confirm <code>server_1.js</code> has no unique functionality not in <code>server.js</code>.</p>
+          <p><strong>2.</strong> Confirm <code>pty_helper.py</code> is not referenced anywhere in <code>server.js</code>.</p>
+          <p><strong>3.</strong> Delete both files: <code>git rm server_1.js pty_helper.py</code></p>
+          <p><strong>4.</strong> Optionally update README if it references these files.</p>
+        </div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-label">Acceptance Criteria</div>
+        <div class="detail-text">
+          Only <code>server.js</code> remains as the server entry point. No ambiguity about which file to run.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Footer -->
+<footer class="report-footer">
+  Generated by Claude Code Review &middot; 25 Feb 2026 &middot;
+  <a href="https://claude.ai">claude.ai</a>
+</footer>
+
+<script>
+// ── Tab switching ──
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Task expand/collapse ──
+function toggleTask(el) {
+  var card = el.closest('.task-card');
+  card.classList.toggle('expanded');
+}
+
+// ── Task check ──
+function checkTask(el) {
+  var card = el.closest('.task-card');
+  card.classList.toggle('done');
+  updateProgress();
+  saveTasks();
+}
+
+// ── Filter ──
+document.querySelectorAll('.filter-pill').forEach(function(pill) {
+  pill.addEventListener('click', function() {
+    document.querySelectorAll('.filter-pill').forEach(function(p) { p.classList.remove('active'); });
+    pill.classList.add('active');
+    var filter = pill.dataset.filter;
+    document.querySelectorAll('.task-card').forEach(function(card) {
+      if (filter === 'all' || card.dataset.severity === filter) {
+        card.style.display = '';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  });
+});
+
+// ── Progress ──
+function updateProgress() {
+  var total = document.querySelectorAll('.task-card').length;
+  var done = document.querySelectorAll('.task-card.done').length;
+  var pct = Math.round((done / total) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = done + ' / ' + total + ' done';
+}
+
+// ── Persist task state ──
+function saveTasks() {
+  var state = {};
+  document.querySelectorAll('.task-card').forEach(function(card) {
+    state[card.dataset.id] = card.classList.contains('done');
+  });
+  try { localStorage.setItem('review-tasks', JSON.stringify(state)); } catch(e) {}
+}
+
+function loadTasks() {
+  try {
+    var state = JSON.parse(localStorage.getItem('review-tasks') || '{}');
+    Object.keys(state).forEach(function(id) {
+      if (state[id]) {
+        var card = document.querySelector('.task-card[data-id="' + id + '"]');
+        if (card) card.classList.add('done');
+      }
+    });
+  } catch(e) {}
+  updateProgress();
+}
+
+loadTasks();
+</script>
+</body>
+</html>

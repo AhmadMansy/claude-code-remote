@@ -1,0 +1,12 @@
+{
+  "name": "claude-code-mobile-bridge",
+  "version": "1.0.0",
+  "description": "Approve/reject Claude Code prompts from your phone",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "node-pty": "^1.0.0"
+  }
+}
